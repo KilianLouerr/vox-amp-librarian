@@ -5,7 +5,6 @@ import com.github.tmarsteel.voxamplibrarian.BinaryOutput
 import com.github.tmarsteel.voxamplibrarian.hex
 import com.github.tmarsteel.voxamplibrarian.protocol.*
 import com.github.tmarsteel.voxamplibrarian.protocol.message.MessageParseException
-import com.github.tmarsteel.voxamplibrarian.toBoolean
 
 data class VtxProgFile(
     val programs: List<Program>
@@ -38,25 +37,33 @@ data class VtxProgFile(
         output.write(volume)
         output.write(presence)
         output.write(resonance)
-        output.write(brightCap)
-        output.write(lowCut)
-        output.write(midBoost)
+
+        // write booleans canonically as 0/1
+        output.writeBool01(brightCap)
+        output.writeBool01(lowCut)
+        output.writeBool01(midBoost)
+
         output.write(tubeBias)
         output.write(ampClass)
+
+        // pedal 1
         output.write(pedal1Type.protocolValue)
-        output.write(pedal1Dial1.semanticValue)
-        output.write(pedal1Dial2)
-        output.write(pedal1Dial3)
-        output.write(pedal1Dial4)
-        output.write(pedal1Dial5)
-        output.write(pedal1Dial6)
+        output.writeUShortBE(pedal1Dial1.semanticValue.toInt())
+        output.writeByte(pedal1Dial2.toInt())
+        output.writeByte(pedal1Dial3.toInt())
+        output.writeByte(pedal1Dial4.toInt())
+        output.writeByte(pedal1Dial5.toInt())
+        output.writeByte(pedal1Dial6.toInt())
+
+        // pedal 2
         output.write(pedal2Type.protocolValue)
-        output.write(pedal2Dial1.semanticValue)
-        output.write(pedal2Dial2)
-        output.write(pedal2Dial3)
-        output.write(pedal2Dial4)
-        output.write(pedal2Dial5)
-        output.write(pedal2Dial6)
+        output.writeUShortBE(pedal2Dial1.semanticValue.toInt())
+        output.writeByte(pedal2Dial2.toInt())
+        output.writeByte(pedal2Dial3.toInt())
+        output.writeByte(pedal2Dial4.toInt())
+        output.writeByte(pedal2Dial5.toInt())
+        output.writeByte(pedal2Dial6.toInt())
+
         output.write(byteArrayOf(
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,
@@ -67,7 +74,20 @@ data class VtxProgFile(
         output.write(reverbPedalDial3)
         output.write(reverbPedalDial4)
         output.write(reverbPedalDial5)
-        output.write(0x00)
+
+        output.write(0x00.toByte())
+    }
+
+    private fun BinaryOutput.writeBool01(value: Boolean) {
+        write((if (value) 0x01 else 0x00).toByte())
+    }
+    private fun BinaryOutput.writeUShortBE(value: Int) {
+        require(value in 0..0xFFFF) { "UShort out of range: $value" }
+        write(((value ushr 8) and 0xFF).toByte())
+        write((value and 0xFF).toByte())
+    }
+    private fun BinaryOutput.writeByte(v: Int) {
+        write((v and 0xFF).toByte())
     }
 
     companion object {
@@ -113,30 +133,35 @@ data class VtxProgFile(
             val volume = ZeroToTenDial.readFrom(input)
             val presence = ZeroToTenDial.readFrom(input)
             val resonance = ZeroToTenDial.readFrom(input)
-            val brightCap = input.nextByte().toBoolean()
-            val lowCut = input.nextByte().toBoolean()
-            val midBoost = input.nextByte().toBoolean()
+
+            // Amp-level booleans: accept 0x20 as true for legacy
+            val brightCap = readBool01LenientAmp(input)
+            val lowCut = readBool01LenientAmp(input)
+            val midBoost = readBool01LenientAmp(input)
+
             val tubeBias = TubeBias.readFrom(input)
             val ampClass = AmpClass.readFrom(input)
             val pedal1Type = Slot1PedalType.ofProtocolValue(input.nextByte())
             val pedal1Dial1 = TwoByteDial(input.nextUShort())
-            val pedal1Dial2 = input.nextByte()
-            val pedal1Dial3 = input.nextByte()
-            val pedal1Dial4 = input.nextByte()
-            val pedal1Dial5 = input.nextByte()
-            val pedal1Dial6 = input.nextByte()
+            val pedal1Dial2 = readByteLenientDial(input)
+            val pedal1Dial3 = readByteLenientDial(input)
+            val pedal1Dial4 = readByteLenientDial(input)
+            val pedal1Dial5 = readByteLenientDial(input)
+            val pedal1Dial6 = readByteLenientDial(input)
+
             val pedal2Type = Slot2PedalType.ofProtocolValue(input.nextByte())
             val pedal2Dial1 = TwoByteDial(input.nextUShort())
-            val pedal2Dial2 = input.nextByte()
-            val pedal2Dial3 = input.nextByte()
-            val pedal2Dial4 = input.nextByte()
-            val pedal2Dial5 = input.nextByte()
-            val pedal2Dial6 = input.nextByte()
+            val pedal2Dial2 = readByteLenientDial(input)
+            val pedal2Dial3 = readByteLenientDial(input)
+            val pedal2Dial4 = readByteLenientDial(input)
+            val pedal2Dial5 = readByteLenientDial(input)
+            val pedal2Dial6 = readByteLenientDial(input)
+
             input.skip(0x08)
             val reverbPedalType = ReverbPedalType.ofProtocolValue(input.nextByte())
             val reverbPedalDial1 = ZeroToTenDial.readFrom(input)
             val reverbPedalDial2 = ZeroToTenDial.readFrom(input)
-            val reverbPedalDial3 = input.nextByte()
+            val reverbPedalDial3 = readByteLenientDial(input)
             val reverbPedalDial4 = ZeroToTenDial.readFrom(input)
             val reverbPedalDial5 = ZeroToTenDial.readFrom(input)
             input.skip(1)
@@ -181,6 +206,28 @@ data class VtxProgFile(
                 reverbPedalDial4 = reverbPedalDial4,
                 reverbPedalDial5 = reverbPedalDial5,
             )
+        }
+
+        // --- Minimal leniency helpers ---
+
+        // Amp-level booleans: 0=false, 1=true, 0x20 (space) -> false
+        private fun readBool01LenientAmp(input: BinaryInput): Boolean {
+            val raw = input.nextByte().toInt() and 0xFF
+            return when (raw) {
+                0x00 -> false
+                0x01 -> true
+                0x20 -> false
+                else -> throw MessageParseException.InvalidMessage("Expected boolean (0 or 1), got $raw")
+            }
+        }
+
+        // Single-byte pedal/reverb dials: keep numeric, but treat 0x20 as 0x01 (true) for legacy boolean-style dials
+        private fun readByteLenientDial(input: BinaryInput): Byte {
+            val raw = input.nextByte().toInt() and 0xFF
+            return when (raw) {
+                0x20 -> 0x01.toByte()
+                else -> raw.toByte()
+            }
         }
     }
 }
