@@ -71,7 +71,8 @@ The docs folder deploys to GitHub pages automatically on push to main branch.
 
 To deploy new changes manually, run:
 
-```./gradlew buildAndDeploy   
+```
+./gradlew buildAndDeploy   
 ```
 
 This will build the app and copy the contents of `build/distributions` to the `docs` folder.
