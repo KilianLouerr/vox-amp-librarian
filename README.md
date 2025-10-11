@@ -64,3 +64,14 @@ Features needed:
   structure would need adaptions to account for the different hardware capabilities
 * Separate the protocol-code out into a Kotlin/Common source-set so others can use it to build apps that
   would run on Kotlin/JVM or Kotlin/Native.
+
+## Deploy
+
+The docs folder deploys to GitHub pages automatically on push to main branch.
+
+To deploy new changes manually, run:
+
+```./gradlew buildAndDeploy   
+```
+
+This will build the app and copy the contents of `build/distributions` to the `docs` folder.
