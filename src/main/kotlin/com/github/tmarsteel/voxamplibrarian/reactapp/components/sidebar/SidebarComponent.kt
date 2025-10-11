@@ -179,6 +179,14 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
     val hiddenFileInputRef = createRef<HTMLInputElement>()
     var selectedTab by useState(1)
 
+    icon("x", "close side menu") {
+        css(ClassName("sidebar-close")) {
+            fontSize = 2.rem
+            cursor = Cursor.pointer
+        }
+        onClick = { props.onClose() }
+    }
+
     div {
         className = classes("sidebar__section-heading")
 
@@ -234,14 +242,6 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
             +"Saved Slots"
             onClick = { selectedTab = 0 }
         }
-    }
-
-    icon("x", "close side menu") {
-        css(ClassName("sidebar-close")) {
-            fontSize = 2.rem
-            cursor = Cursor.pointer
-        }
-        onClick = { props.onClose() }
     }
 
     div {
