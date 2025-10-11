@@ -258,7 +258,7 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                         span {
                             +"Reset to default bank"
                         }
-                        //disabled = !props.ampConnected || props.vtxAmpState == null
+                        disabled = !props.ampConnected || props.vtxAmpState == null
                         onClick = {
                             val favsGroup = sidebarState.configGroups.find { it.name == "8_Favs_1" }
                             if (favsGroup != null) {
