@@ -41,6 +41,7 @@ import org.w3c.files.Blob
 import org.w3c.files.File
 import react.FC
 import react.Props
+import csstype.px
 import react.createRef
 import react.dom.events.ChangeEvent
 import react.dom.html.InputType
@@ -51,6 +52,8 @@ import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
 import react.useEffectOnce
+import react.useState
+import csstype.Color
 import kotlin.js.Date
 
 external interface SidebarComponentProps : Props {
@@ -174,6 +177,64 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
         { Json.decodeFromString(it) },
     )
     val hiddenFileInputRef = createRef<HTMLInputElement>()
+    var selectedTab by useState(1)
+
+    div {
+        className = classes("sidebar__section-heading")
+
+        ConnectivityIndicatorComponent {
+            isActive = props.ampConnected
+        }
+
+        span {
+            +"VT20X/40X/100X Amplifier (${if (!props.ampConnected) "not " else ""}connected)"
+        }
+    }
+
+    div {
+        className = classes("sidebar__tabs")
+        css {
+            marginBottom = 2.rem
+            display = csstype.Display.flex
+            gap = 1.rem
+        }
+        button {
+            className = if (selectedTab == 1) ClassName("active") else null
+            css {
+                background = csstype.None.none
+                border = csstype.None.none
+                borderRadius = 0.px
+                borderBottom = if (selectedTab == 1) {
+                    csstype.Border(3.px, csstype.LineStyle.solid, Color("var(--color-text)"))
+                } else {
+                    csstype.Border(3.px, csstype.LineStyle.solid, csstype.NamedColor.transparent)
+                }
+                padding = 0.75.rem
+                fontWeight = csstype.FontWeight.bold
+                cursor = csstype.Cursor.pointer
+            }
+            +"Preset Management"
+            onClick = { selectedTab = 1 }
+        }
+        button {
+            className = if (selectedTab == 0) ClassName("active") else null
+            css {
+                background = csstype.None.none
+                border = csstype.None.none
+                borderRadius = 0.px
+                borderBottom = if (selectedTab == 0) {
+                    csstype.Border(3.px, csstype.LineStyle.solid, Color("var(--color-text)"))
+                } else {
+                    csstype.Border(3.px, csstype.LineStyle.solid, csstype.NamedColor.transparent)
+                }
+                padding = 0.75.rem
+                fontWeight = csstype.FontWeight.bold
+                cursor = csstype.Cursor.pointer
+            }
+            +"Saved Slots"
+            onClick = { selectedTab = 0 }
+        }
+    }
 
     icon("x", "close side menu") {
         css(ClassName("sidebar-close")) {
@@ -186,197 +247,228 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
     div {
         className = classes("sidebar__inner")
 
-        div {
-            className = classes("sidebar__section-heading")
-
-            ConnectivityIndicatorComponent {
-                isActive = props.ampConnected
-            }
-
-            span {
-                +"VT20X/40X/100X Amplifier (${if (!props.ampConnected) "not " else ""}connected)"
-            }
-        }
-
-        div {
-            className = classes("sidebar__slots")
-
-            for (programSlot in ProgramSlot.values()) {
-                ProgramSlotComponent {
-                    programName = localAmpState?.storedUserPrograms?.get(programSlot)?.programName
-                    location = ProgramSlotLocation.Amplifier(programSlot)
-                    onViewProgram = ({
-                        props.onLoadConfiguration(programSlot)
-                    }).takeIf { localAmpState != null }
-                    onSaveToThisLocation = ({
-                        props.onSaveConfiguration(programSlot)
-                    }).takeIf { localAmpState != null }
-                    isActive = props.ampConnected && localAmpState != null && localAmpState is VtxAmpState.ProgramSlotSelected && localAmpState.slot == programSlot
-                    onActivated = ({
-                        props.onProgramSlotSelected(programSlot)
-                    }).takeIf { localAmpState != null }
-                }
-            }
-        }
-
-        div {
-            className = classes("sidebar__section-heading")
-            icon("file-earmark-binary", "Current saved preset")
-            select {
-                value = sidebarState.selectedGroupUid
-                onChange = { e: ChangeEvent<HTMLSelectElement> ->
-                    sidebarState = sidebarState.copy(selectedGroupUid = e.target.value)
-                }
-                for (group in sidebarState.configGroups.sortedBy { it.name }) {
-                    option {
-                        value = group.uid
-                        +(group.name ?: "<no name>")
+        when (selectedTab) {
+            0 -> {
+                div {
+                    css {
+                        marginBottom = 1.rem
+                    }
+                    button {
+                        className = if (selectedTab == 0) ClassName("active") else null
+                        +"Reset to default bank"
+                        onClick = { selectedTab = 0 }
                     }
                 }
-            }
 
-            button {
-                icon("pencil-fill")
-                title = "Rename"
-                onClick = {
-                    val newName = window.prompt("New name for the saved preset", sidebarState.selectedGroup.name ?: "")
-                    sidebarState = sidebarState.withGroup(sidebarState.selectedGroup.copy(name = newName))
-                }
-            }
+                div {
+                    className = classes("sidebar__slots")
 
-            button {
-                icon("trash")
-                title = "Delete this saved preset"
-                onClick = deleteGroup@{
-                    if (!window.confirm("Remove the saved preset ${sidebarState.selectedGroup.name ?: "<no name>"}")) {
-                        return@deleteGroup
-                    }
-
-                    sidebarState = sidebarState.withoutSelectedGroup()
-                }
-            }
-
-            button {
-                icon("plus")
-                title = "Add new saved preset"
-                onClick = {
-                    val newGroup = ConfigurationGroup.createBlank()
-                    sidebarState = sidebarState.withGroup(newGroup).copy(selectedGroupUid = newGroup.uid)
-                }
-            }
-        }
-
-        div {
-            css(ClassName("actions")) {
-                marginBottom = 1.rem
-            }
-
-            button {
-                icon("folder")
-                span {
-                    +"Import File"
-                }
-                title = "Import a .VTXPROG file from VOX TomeRoom"
-
-                onClick = loadFile@{
-                    hiddenFileInputRef.current!!.click()
-                }
-            }
-
-            button {
-                icon("save2")
-                span {
-                    +"Export as File"
-                }
-                title = "Export these programs as a .VTXPROG file, compatible with VOX ToneRoom"
-
-                onClick = {
-                    val newVtxProgFile = VtxProgFile(sidebarState.selectedGroup.configs.map { it.toProtocolDataModel() })
-                    val blob = writeToBlob { binaryOut ->
-                        newVtxProgFile.writeToInVtxProgFormat(binaryOut)
-                    }
-
-                    val filename = (sidebarState.selectedGroup.name ?: run {
-                        val now = Date()
-                        "unknown-${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}"
-                    }) + ".vtxprog"
-                    startDownload(blob, filename)
-                }
-            }
-
-            button {
-                icon("arrow-up", "Configure amplifier")
-                span {
-                    +"Apply all to Amp"
-                }
-                title = "Configure amplifier with the first ${ProgramSlot.values().size} programs"
-
-                disabled = !props.ampConnected || props.vtxAmpState == null
-                onClick = {
-                    sidebarState.selectedGroup.configs
-                        .take(ProgramSlot.values().size)
-                        .zip(ProgramSlot.values())
-                        .forEach { (config, slot) ->
-                            props.onWriteConfigurationToAmpSlot(config, slot)
+                    for (programSlot in ProgramSlot.values()) {
+                        ProgramSlotComponent {
+                            programName =
+                                localAmpState?.storedUserPrograms?.get(programSlot)?.programName
+                            location = ProgramSlotLocation.Amplifier(programSlot)
+                            onViewProgram = ({
+                                props.onLoadConfiguration(programSlot)
+                            }).takeIf { localAmpState != null }
+                            onSaveToThisLocation = ({
+                                props.onSaveConfiguration(programSlot)
+                            }).takeIf { localAmpState != null }
+                            isActive =
+                                props.ampConnected && localAmpState != null && localAmpState is VtxAmpState.ProgramSlotSelected && localAmpState.slot == programSlot
+                            onActivated = ({
+                                props.onProgramSlotSelected(programSlot)
+                            }).takeIf { localAmpState != null }
                         }
-
-                    props.onProgramSlotSelected(ProgramSlot.A1)
-                }
-            }
-
-            button {
-                icon("arrow-down", "Save amplifier config")
-                span {
-                    +"Save all from Amp"
-                }
-                title = "Copies all the programs from the amplifier to this file"
-
-                disabled = !props.ampConnected || props.vtxAmpState == null
-                onClick = {
-                    val ampConfigs = props.vtxAmpState!!.storedUserPrograms.entries
-                        .sortedBy { (slot, _) -> slot }
-                        .map { (_, config) -> config }
-                    sidebarState = sidebarState.withGroup(
-                        sidebarState.selectedGroup.withFirstConfigs(ampConfigs)
-                    )
-                }
-            }
-        }
-
-        val ampInteractPossible: Boolean = localAmpState != null && localAmpState is VtxAmpState.ProgramSlotSelected
-        div {
-            className = classes("sidebar__slots")
-
-            sidebarState.selectedGroup.configs.forEachIndexed { configIndexInGroup, config ->
-                ProgramSlotComponent {
-                    location = ProgramSlotLocation.File(sidebarState.selectedGroup.name, configIndexInGroup)
-                    programName = config.programName
-                    onViewProgram = {
-                        props.onViewNonAmpConfiguration(config)
                     }
-                    onSaveIntoSelectedAmpSlot = (storeFileProgramToAmp@{
-                        val selectedSlot = (localAmpState as VtxAmpState.ProgramSlotSelected).slot
-                        props.onWriteConfigurationToAmpSlot(config, selectedSlot)
-                    }).takeIf { ampInteractPossible }
-                    onSaveToThisLocation = (saveToFileSlot@{
-                        val localConfig = localAmpState?.activeConfiguration ?: return@saveToFileSlot
-                        sidebarState = sidebarState.withGroup(
-                            sidebarState.selectedGroup.withConfigAtIndex(localConfig, configIndexInGroup)
-                        )
-                    }).takeIf { ampInteractPossible }
-                    onDelete = ({
-                        sidebarState = sidebarState.withGroup(
-                            sidebarState.selectedGroup.withoutConfigAtIndex(configIndexInGroup)
-                        )
-                    }).takeIf { sidebarState.selectedGroup.configs.size > 1 }
                 }
             }
 
-            AddProgramSlotComponent {
-                onAddSlot = {
-                    sidebarState = sidebarState.withGroup(
-                        sidebarState.selectedGroup.withAdditionalConfig(SimulationConfiguration.DEFAULT)
-                    )
+            1 -> {
+
+                div {
+                    className = classes("sidebar__section-heading")
+                    icon("file-earmark-binary", "Current saved preset")
+                    select {
+                        value = sidebarState.selectedGroupUid
+                        onChange = { e: ChangeEvent<HTMLSelectElement> ->
+                            sidebarState = sidebarState.copy(selectedGroupUid = e.target.value)
+                        }
+                        for (group in sidebarState.configGroups.sortedBy { it.name }) {
+                            option {
+                                value = group.uid
+                                +(group.name ?: "<no name>")
+                            }
+                        }
+                    }
+
+                    button {
+                        icon("pencil-fill")
+                        title = "Rename"
+                        onClick = {
+                            val newName = window.prompt(
+                                "New name for the saved preset",
+                                sidebarState.selectedGroup.name ?: ""
+                            )
+                            sidebarState =
+                                sidebarState.withGroup(sidebarState.selectedGroup.copy(name = newName))
+                        }
+                    }
+
+                    button {
+                        icon("trash")
+                        title = "Delete this saved preset"
+                        onClick = deleteGroup@{
+                            if (!window.confirm("Remove the saved preset ${sidebarState.selectedGroup.name ?: "<no name>"}")) {
+                                return@deleteGroup
+                            }
+
+                            sidebarState = sidebarState.withoutSelectedGroup()
+                        }
+                    }
+
+                    button {
+                        icon("plus")
+                        title = "Add new saved preset"
+                        onClick = {
+                            val newGroup = ConfigurationGroup.createBlank()
+                            sidebarState = sidebarState.withGroup(newGroup)
+                                .copy(selectedGroupUid = newGroup.uid)
+                        }
+                    }
+                }
+
+                div {
+                    css(ClassName("actions")) {
+                        marginBottom = 1.rem
+                    }
+
+                    button {
+                        icon("folder")
+                        span {
+                            +"Import File"
+                        }
+                        title = "Import a .VTXPROG file from VOX TomeRoom"
+
+                        onClick = loadFile@{
+                            hiddenFileInputRef.current!!.click()
+                        }
+                    }
+
+                    button {
+                        icon("save2")
+                        span {
+                            +"Export as File"
+                        }
+                        title =
+                            "Export these programs as a .VTXPROG file, compatible with VOX ToneRoom"
+
+                        onClick = {
+                            val newVtxProgFile =
+                                VtxProgFile(sidebarState.selectedGroup.configs.map { it.toProtocolDataModel() })
+                            val blob = writeToBlob { binaryOut ->
+                                newVtxProgFile.writeToInVtxProgFormat(binaryOut)
+                            }
+
+                            val filename = (sidebarState.selectedGroup.name ?: run {
+                                val now = Date()
+                                "unknown-${now.getFullYear()}-${
+                                    (now.getMonth() + 1).toString().padStart(2, '0')
+                                }-${now.getDate().toString().padStart(2, '0')}"
+                            }) + ".vtxprog"
+                            startDownload(blob, filename)
+                        }
+                    }
+
+                    button {
+                        icon("arrow-up", "Configure amplifier")
+                        span {
+                            +"Apply all to Amp"
+                        }
+                        title =
+                            "Configure amplifier with the first ${ProgramSlot.values().size} programs"
+
+                        disabled = !props.ampConnected || props.vtxAmpState == null
+                        onClick = {
+                            sidebarState.selectedGroup.configs
+                                .take(ProgramSlot.values().size)
+                                .zip(ProgramSlot.values())
+                                .forEach { (config, slot) ->
+                                    props.onWriteConfigurationToAmpSlot(config, slot)
+                                }
+
+                            props.onProgramSlotSelected(ProgramSlot.A1)
+                        }
+                    }
+
+                    button {
+                        icon("arrow-down", "Save amplifier config")
+                        span {
+                            +"Save all from Amp"
+                        }
+                        title = "Copies all the programs from the amplifier to this file"
+
+                        disabled = !props.ampConnected || props.vtxAmpState == null
+                        onClick = {
+                            val ampConfigs = props.vtxAmpState!!.storedUserPrograms.entries
+                                .sortedBy { (slot, _) -> slot }
+                                .map { (_, config) -> config }
+                            sidebarState = sidebarState.withGroup(
+                                sidebarState.selectedGroup.withFirstConfigs(ampConfigs)
+                            )
+                        }
+                    }
+                }
+
+                val ampInteractPossible: Boolean =
+                    localAmpState != null && localAmpState is VtxAmpState.ProgramSlotSelected
+                div {
+                    className = classes("sidebar__slots")
+
+                    sidebarState.selectedGroup.configs.forEachIndexed { configIndexInGroup, config ->
+                        ProgramSlotComponent {
+                            location = ProgramSlotLocation.File(
+                                sidebarState.selectedGroup.name,
+                                configIndexInGroup
+                            )
+                            programName = config.programName
+                            onViewProgram = {
+                                props.onViewNonAmpConfiguration(config)
+                            }
+                            onSaveIntoSelectedAmpSlot = (storeFileProgramToAmp@{
+                                val selectedSlot =
+                                    (localAmpState as VtxAmpState.ProgramSlotSelected).slot
+                                props.onWriteConfigurationToAmpSlot(config, selectedSlot)
+                            }).takeIf { ampInteractPossible }
+                            onSaveToThisLocation = (saveToFileSlot@{
+                                val localConfig =
+                                    localAmpState?.activeConfiguration ?: return@saveToFileSlot
+                                sidebarState = sidebarState.withGroup(
+                                    sidebarState.selectedGroup.withConfigAtIndex(
+                                        localConfig,
+                                        configIndexInGroup
+                                    )
+                                )
+                            }).takeIf { ampInteractPossible }
+                            onDelete = ({
+                                sidebarState = sidebarState.withGroup(
+                                    sidebarState.selectedGroup.withoutConfigAtIndex(
+                                        configIndexInGroup
+                                    )
+                                )
+                            }).takeIf { sidebarState.selectedGroup.configs.size > 1 }
+                        }
+                    }
+
+                    AddProgramSlotComponent {
+                        onAddSlot = {
+                            sidebarState = sidebarState.withGroup(
+                                sidebarState.selectedGroup.withAdditionalConfig(
+                                    SimulationConfiguration.DEFAULT
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -412,9 +504,9 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                 try {
                     val vtxprogFile = VtxProgFile.readFromInVtxProgFormat(BlobBinaryInput(file))
                     val newGroup = ConfigurationGroup.fromVtxProgFile(vtxprogFile, file.name)
-                    sidebarState = sidebarState.withGroup(newGroup).copy(selectedGroupUid = newGroup.uid)
-                }
-                catch (ex: Throwable) {
+                    sidebarState =
+                        sidebarState.withGroup(newGroup).copy(selectedGroupUid = newGroup.uid)
+                } catch (ex: Throwable) {
                     logger.error("Failed to load VTXPROG file", ex)
                     val errorDetails = when (ex) {
                         is MessageParseException.InvalidMessage -> ": ${ex.message}"
@@ -422,8 +514,7 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                         else -> "; see console logs for details."
                     }
                     window.alert("Failed to load the file$errorDetails")
-                }
-                finally {
+                } finally {
                     hiddenFileInputRef.current?.value = ""
                 }
             }
