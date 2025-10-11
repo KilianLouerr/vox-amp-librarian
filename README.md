@@ -76,3 +76,9 @@ To deploy new changes manually, run:
 ```
 
 This will build the app and copy the contents of `build/distributions` to the `docs` folder.
+
+## Run dev
+
+```
+./gradlew browserDevelopmentRun --continuous 
+```

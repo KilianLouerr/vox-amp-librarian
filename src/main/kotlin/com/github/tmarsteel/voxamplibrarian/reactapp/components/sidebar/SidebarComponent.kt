@@ -62,6 +62,7 @@ external interface SidebarComponentProps : Props {
     var onProgramSlotSelected: (ProgramSlot) -> Unit
     var onSaveConfiguration: (ProgramSlot) -> Unit
     var onLoadConfiguration: (ProgramSlot) -> Unit
+    var onLoadConfigurationFromFile: (SimulationConfiguration) -> Unit
     var onViewNonAmpConfiguration: (SimulationConfiguration) -> Unit
     var onWriteConfigurationToAmpSlot: (SimulationConfiguration, ProgramSlot) -> Unit
     var onClose: () -> Unit
@@ -459,9 +460,7 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                                 props.onWriteConfigurationToAmpSlot(config, selectedSlot)
                             }).takeIf { ampInteractPossible }
                             onSendToAmp = (storeFileProgramToAmp@{
-                                val selectedSlot =
-                                    (localAmpState as VtxAmpState.ProgramSlotSelected).slot
-                                props.onLoadConfiguration(selectedSlot)
+                                props.onLoadConfigurationFromFile(config)
                             }).takeIf { ampInteractPossible }
                             onSaveToThisLocation = (saveToFileSlot@{
                                 val localConfig =
