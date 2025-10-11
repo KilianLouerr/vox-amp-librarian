@@ -255,8 +255,25 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                     }
                     button {
                         className = if (selectedTab == 0) ClassName("active") else null
-                        +"Reset to default bank"
-                        onClick = { selectedTab = 0 }
+                        span {
+                            +"Reset to default bank"
+                        }
+                        //disabled = !props.ampConnected || props.vtxAmpState == null
+                        onClick = {
+                            val favsGroup = sidebarState.configGroups.find { it.name == "8_Favs_1" }
+                            if (favsGroup != null) {
+                                sidebarState = sidebarState.copy(selectedGroupUid = favsGroup.uid)
+                                favsGroup.configs
+                                    .take(ProgramSlot.values().size)
+                                    .zip(ProgramSlot.values())
+                                    .forEach { (config, slot) ->
+                                        props.onWriteConfigurationToAmpSlot(config, slot)
+                                    }
+                                props.onProgramSlotSelected(ProgramSlot.A1)
+                            } else {
+                                window.alert("Group '8_Favs_1' not found.")
+                            }
+                        }
                     }
                 }
 
