@@ -451,11 +451,17 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                             programName = config.programName
                             onViewProgram = {
                                 props.onViewNonAmpConfiguration(config)
+                                props.onClose()
                             }
                             onSaveIntoSelectedAmpSlot = (storeFileProgramToAmp@{
                                 val selectedSlot =
                                     (localAmpState as VtxAmpState.ProgramSlotSelected).slot
                                 props.onWriteConfigurationToAmpSlot(config, selectedSlot)
+                            }).takeIf { ampInteractPossible }
+                            onSendToAmp = (storeFileProgramToAmp@{
+                                val selectedSlot =
+                                    (localAmpState as VtxAmpState.ProgramSlotSelected).slot
+                                props.onLoadConfiguration(selectedSlot)
                             }).takeIf { ampInteractPossible }
                             onSaveToThisLocation = (saveToFileSlot@{
                                 val localConfig =

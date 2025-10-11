@@ -18,6 +18,7 @@ external interface ProgramSlotComponentProps : Props {
     var onSaveIntoSelectedAmpSlot: (() -> Unit)?
     var onDelete: (() -> Unit)?
     var isActive: Boolean
+    var onSendToAmp: (() -> Unit)?
 }
 
 sealed class ProgramSlotLocation {
@@ -98,6 +99,17 @@ val ProgramSlotComponent = FC<ProgramSlotComponentProps> { props ->
                         +"Save to Amp slot"
                     }
                     title = "Writes this program to the selected slot on the amp"
+                    onClick = { event -> event.stopPropagation(); callback() }
+                }
+            }
+
+            props.onSendToAmp?.let { callback ->
+                button {
+                    icon("upload",)
+                    span {
+                        +"Send to Amp"
+                    }
+                    title = "Writes this program to the amp"
                     onClick = { event -> event.stopPropagation(); callback() }
                 }
             }
