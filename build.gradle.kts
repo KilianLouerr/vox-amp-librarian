@@ -47,6 +47,45 @@ rootProject.extensions.configure<org.jetbrains.kotlin.gradle.targets.js.nodejs.N
     versions.webpackCli.version = "4.10.0"
 }
 
+tasks.register("generateVtxManifest") {
+    val presetDir = file("src/main/resources/presets")
+    val manifestFile = file("$presetDir/vtxprog-manifest.json")
+
+    doLast {
+        val files = presetDir.listFiles { f -> f.extension == "vtxprog" }?.map { it.name } ?: emptyList()
+
+        // Build JSON string manually
+        val json = buildString {
+            append("{\"files\":[")
+            append(files.joinToString(",") { "\"$it\"" })
+            append("]}")
+        }
+
+        manifestFile.writeText(json)
+        println("Generated manifest with ${files.size} .vtxprog files")
+    }
+}
+
+val copyToDocs by tasks.registering(Copy::class) {
+    group = "deployment"
+    description = "Copy build/distributions into docs folder for GitHub Pages"
+
+    from("$buildDir/distributions")
+    into("docs")
+}
+
+tasks.register("buildAndDeploy") {
+    group = "deployment"
+    description = "Build app, copy presets, and place distributions into docs"
+
+    dependsOn("browserDistribution")
+    finalizedBy(copyToDocs)
+}
+
+tasks.named("processResources") {
+    dependsOn("generateVtxManifest")
+}
+
 tasks.named("browserDevelopmentRun") {
     dependsOn("developmentExecutableCompileSync")
 }

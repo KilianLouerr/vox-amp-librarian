@@ -24,6 +24,7 @@ import emotion.react.css
 import kotlinx.browser.window
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.js.console
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -36,6 +37,8 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import org.w3c.dom.HTMLInputElement
 import org.w3c.dom.HTMLSelectElement
+import org.w3c.files.Blob
+import org.w3c.files.File
 import react.FC
 import react.Props
 import react.createRef
@@ -47,6 +50,7 @@ import react.dom.html.ReactHTML.input
 import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
+import react.useEffectOnce
 import kotlin.js.Date
 
 external interface SidebarComponentProps : Props {
@@ -424,6 +428,37 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                 }
             }
         }
+    }
+
+    fun importVtxProgBlob(fileName: String, blob: Blob) {
+        GlobalScope.launch {
+            val fetchedFile = File(arrayOf(blob), fileName)
+            val blobInput = BlobBinaryInput(fetchedFile)
+            val vtxprogFile = VtxProgFile.readFromInVtxProgFormat(blobInput)
+            val newGroup = ConfigurationGroup.fromVtxProgFile(vtxprogFile, fileName)
+            sidebarState = sidebarState.withGroup(newGroup)
+                .copy(selectedGroupUid = newGroup.uid)
+        }
+    }
+
+    useEffectOnce {
+        window.localStorage.removeItem("sidebar-state")
+        sidebarState = PersistedState.createBlank()
+
+        window.fetch("presets/vtxprog-manifest.json")
+            .then { it.json() }
+            .then { manifest ->
+                val files = manifest.asDynamic().files.unsafeCast<Array<String>>()
+                files.forEach { fileName ->
+                    window.fetch("presets/$fileName")
+                        .then { it.blob() }
+                        .then { blob ->
+                            if (blob != null) {
+                                importVtxProgBlob(fileName, blob)
+                            }
+                        }
+                }
+            }
     }
 }
 
