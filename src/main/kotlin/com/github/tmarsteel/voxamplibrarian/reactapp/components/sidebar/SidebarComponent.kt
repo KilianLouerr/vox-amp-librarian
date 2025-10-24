@@ -55,6 +55,7 @@ import react.useEffectOnce
 import react.useState
 import csstype.Color
 import kotlin.js.Date
+import csstype.pct
 
 external interface SidebarComponentProps : Props {
     var ampConnected: Boolean
@@ -179,6 +180,7 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
     )
     val hiddenFileInputRef = createRef<HTMLInputElement>()
     var selectedTab by useState(1)
+    var presetSearch by useState("")
 
     icon("x", "close side menu") {
         css(ClassName("sidebar-close")) {
@@ -242,6 +244,24 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
             }
             +"Saved Slots"
             onClick = { selectedTab = 0 }
+        }
+        button {
+            className = if (selectedTab == 2) ClassName("active") else null
+            css {
+                background = csstype.None.none
+                border = csstype.None.none
+                borderRadius = 0.px
+                borderBottom = if (selectedTab == 2) {
+                    csstype.Border(3.px, csstype.LineStyle.solid, Color("var(--color-text)"))
+                } else {
+                    csstype.Border(3.px, csstype.LineStyle.solid, csstype.NamedColor.transparent)
+                }
+                padding = 0.75.rem
+                fontWeight = csstype.FontWeight.bold
+                cursor = csstype.Cursor.pointer
+            }
+            +"Search Presets"
+            onClick = { selectedTab = 2 }
         }
     }
 
@@ -489,6 +509,143 @@ val SidebarComponent = FC<SidebarComponentProps> { props ->
                                     SimulationConfiguration.DEFAULT
                                 )
                             )
+                        }
+                    }
+                }
+            }
+
+            2 -> {
+                val filteredGroups = sidebarState.configGroups.filter { group ->
+                    if (presetSearch.isBlank()) return@filter true
+                    val search = presetSearch
+                    val matchesGroupName = group.name?.contains(search, ignoreCase = true) ?: false
+                    val matchesAnyConfig = group.configs.any { config ->
+                        (config.programName ?: "").contains(search, ignoreCase = true)
+                    }
+                    matchesGroupName || matchesAnyConfig
+                }
+
+                // search input
+                input {
+                    type = InputType.text
+                    placeholder = "Search presets..."
+                    value = presetSearch
+                    onChange = { e: ChangeEvent<HTMLInputElement> ->
+                        presetSearch = e.target.value
+                    }
+                    css {
+                        width = 100.pct
+                        marginLeft = 0.px
+                        marginRight = 0.5.rem
+                        padding = 0.4.rem
+                    }
+                }
+
+                // group select uses filtered list (full width, placed under input)
+                select {
+                    value = sidebarState.selectedGroupUid
+                    onChange = { e: ChangeEvent<HTMLSelectElement> ->
+                        sidebarState = sidebarState.copy(selectedGroupUid = e.target.value)
+                    }
+                    css {
+                        width = 100.pct
+                        marginTop = 0.5.rem
+                    }
+
+                    if (filteredGroups.isEmpty()) {
+                        option {
+                            disabled = true
+                            +"(no matches)"
+                        }
+                    } else {
+                        for (group in filteredGroups.sortedBy { it.name }) {
+                            option {
+                                value = group.uid
+                                +(group.name ?: "<no name>")
+                            }
+                        }
+                    }
+                }
+
+                // only show search results when something is entered
+                if (presetSearch.isNotBlank()) {
+                    val ampInteractPossible =
+                        localAmpState != null && localAmpState is VtxAmpState.ProgramSlotSelected
+
+                    if (filteredGroups.isEmpty()) {
+                        div {
+                            +"No presets found."
+                            css {
+                                marginTop = 0.5.rem
+                                color = Color("var(--color-text)")
+                            }
+                        }
+                    } else {
+                        for (group in filteredGroups.sortedBy { it.name }) {
+                            val groupMatches =
+                                (group.name?.contains(presetSearch, ignoreCase = true) ?: false)
+
+                            // show group heading only if group has at least one matching config
+                            val matchingConfigs = group.configs.mapIndexedNotNull { idx, cfg ->
+                                if (groupMatches || (cfg.programName ?: "").contains(
+                                        presetSearch,
+                                        ignoreCase = true
+                                    )
+                                ) Pair(idx, cfg) else null
+                            }
+
+                            if (matchingConfigs.isNotEmpty()) {
+                                div {
+                                    css {
+                                        marginTop = 0.75.rem
+                                        marginBottom = 0.25.rem
+                                        fontWeight = csstype.FontWeight.bold
+                                        color = Color("var(--color-text)")
+                                    }
+                                    +((group.name ?: "<no name>"))
+                                }
+
+                                div {
+                                    className = classes("sidebar__slots")
+
+                                    for ((configIndexInGroup, config) in matchingConfigs) {
+                                        ProgramSlotComponent {
+                                            location = ProgramSlotLocation.File(
+                                                group.name,
+                                                configIndexInGroup
+                                            )
+                                            programName = config.programName
+                                            onViewProgram = {
+                                                props.onViewNonAmpConfiguration(config)
+                                                props.onClose()
+                                            }
+                                            onSaveIntoSelectedAmpSlot = (storeFileProgramToAmp@{
+                                                val selectedSlot =
+                                                    (localAmpState as? VtxAmpState.ProgramSlotSelected)?.slot
+                                                        ?: return@storeFileProgramToAmp
+                                                props.onWriteConfigurationToAmpSlot(
+                                                    config,
+                                                    selectedSlot
+                                                )
+                                            }).takeIf { ampInteractPossible }
+                                            onSendToAmp = (storeFileProgramToAmp@{
+                                                props.onLoadConfigurationFromFile(config)
+                                            }).takeIf { ampInteractPossible }
+                                            onSaveToThisLocation = (saveToFileSlot@{
+                                                val localConfig =
+                                                    localAmpState?.activeConfiguration
+                                                        ?: return@saveToFileSlot
+                                                sidebarState = sidebarState.withGroup(
+                                                    group.withConfigAtIndex(
+                                                        localConfig,
+                                                        configIndexInGroup
+                                                    )
+                                                )
+                                            }).takeIf { ampInteractPossible }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
