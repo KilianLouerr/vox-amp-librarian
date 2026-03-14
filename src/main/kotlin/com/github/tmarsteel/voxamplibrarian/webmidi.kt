@@ -116,6 +116,8 @@ val VOX_AMP_MIDI_DEVICE: Flow<MidiDevice?> = midiState
     .shareIn(GlobalScope, SharingStarted.Lazily, 0)
 
 private class WebMidiVoxVtxDevice private constructor(val input: MidiInput, val output: MidiOutput) : MidiDevice {
+    private val incomingSysExBuffer = mutableListOf<Byte>()
+
     override suspend fun sendSysExMessage(manufacturerId: Byte, writer: (BinaryOutput) -> Unit) {
         val binaryOutput = BufferedBinaryOutput()
         binaryOutput.write(0xf0.toByte())
@@ -131,26 +133,47 @@ private class WebMidiVoxVtxDevice private constructor(val input: MidiInput, val 
 
     init {
         input.onmidimessage = onmidimessage@{ messageEvent ->
-            logger.debug("< ${messageEvent.data.toByteArray().hex()}")
+            val bytes = messageEvent.data.toByteArray()
+            logger.debug("< ${bytes.hex()}")
 
             if (!this::incomingSysExMessageHandler.isInitialized) {
                 console.warn("Dropping incoming message because no handler is registered.", messageEvent)
                 return@onmidimessage
             }
 
-            if (messageEvent.data.length < 3) {
-                return@onmidimessage
-            }
-            if (messageEvent.data[0] != 0xf0) {
-                return@onmidimessage
-            }
-            if (messageEvent.data[messageEvent.data.length - 1] != 0xf7) {
+            if (bytes.isEmpty()) {
                 return@onmidimessage
             }
 
-            val manufacturerId = messageEvent.data[1].toByte()
+            for (byte in bytes) {
+                val byteAsInt = byte.toInt() and 0xFF
 
-            this.incomingSysExMessageHandler(manufacturerId, ByteArrayBinaryInput(messageEvent.data.toByteArray(), 2, messageEvent.data.length - 2))
+                if (incomingSysExBuffer.isEmpty()) {
+                    if (byteAsInt != 0xF0) {
+                        continue
+                    }
+                }
+
+                incomingSysExBuffer.add(byte)
+
+                if (byteAsInt != 0xF7) {
+                    continue
+                }
+
+                if (incomingSysExBuffer.size < 3) {
+                    incomingSysExBuffer.clear()
+                    return@onmidimessage
+                }
+
+                val fullMessage = incomingSysExBuffer.toByteArray()
+                incomingSysExBuffer.clear()
+
+                val manufacturerId = fullMessage[1]
+                this.incomingSysExMessageHandler(
+                    manufacturerId,
+                    ByteArrayBinaryInput(fullMessage, 2, fullMessage.lastIndex - 1)
+                )
+            }
         }
     }
 
