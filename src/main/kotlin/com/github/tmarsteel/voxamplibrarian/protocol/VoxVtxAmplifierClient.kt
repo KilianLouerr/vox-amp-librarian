@@ -85,29 +85,34 @@ class VoxVtxAmplifierClient(
         abstract fun cancel(): ExchangeState
     }
 
-    private inner class NoneExchangeState : VoxVtxAmplifierClient.ExchangeState() {
-        override suspend fun onSysExMessageReceived(payload: BinaryInput): ExchangeState {
-            var parsedMessage: MessageToHost? = null
-            for (factory in messageFactories) {
-                payload.seekToStart()
-                val factoryResult = try {
-                    factory.parse(payload)
-                } catch (ex: MessageParseException.PrefixNotRecognized) {
-                    continue
-                }
-
-                if (parsedMessage == null) {
-                    parsedMessage = factoryResult
-                } else {
-                    throw AmbiguousMessageException(setOf(parsedMessage::class, factoryResult::class), payload)
-                }
+    private suspend fun dispatchIncomingMessage(payload: BinaryInput): MessageToHost {
+        var parsedMessage: MessageToHost? = null
+        for (factory in messageFactories) {
+            payload.seekToStart()
+            val factoryResult = try {
+                factory.parse(payload)
+            } catch (ex: MessageParseException.PrefixNotRecognized) {
+                continue
             }
 
             if (parsedMessage == null) {
-                throw UnrecognizedMessageException(payload)
+                parsedMessage = factoryResult
+            } else {
+                throw AmbiguousMessageException(setOf(parsedMessage::class, factoryResult::class), payload)
             }
+        }
 
-            listeners.forEach { it.invoke(parsedMessage) }
+        if (parsedMessage == null) {
+            throw UnrecognizedMessageException(payload)
+        }
+
+        listeners.forEach { it.invoke(parsedMessage) }
+        return parsedMessage
+    }
+
+    private inner class NoneExchangeState : VoxVtxAmplifierClient.ExchangeState() {
+        override suspend fun onSysExMessageReceived(payload: BinaryInput): ExchangeState {
+            dispatchIncomingMessage(payload)
             return this
         }
 
@@ -167,7 +172,16 @@ class VoxVtxAmplifierClient(
                 payload.seekToStart()
             }
 
-            when (val handlingResult = responseHandler.onMessage(payload)) {
+            val handlingResult = try {
+                responseHandler.onMessage(payload)
+            } catch (ex: MessageParseException.PrefixNotRecognized) {
+                payload.seekToStart()
+                val message = dispatchIncomingMessage(payload)
+                logger.debug("Exchange ${exchange::class.simpleName} observed side-effect message ${message::class.simpleName} while waiting for its response")
+                return this
+            }
+
+            when (handlingResult) {
                 is ResponseHandler.MessageResult.ResponseComplete -> {
                     logger.info("Exchange ${exchange::class.simpleName} completed with ${handlingResult.response!!::class.simpleName}")
                     responseAvailableResumed = true
