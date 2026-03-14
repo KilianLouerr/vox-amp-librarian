@@ -1,10 +1,12 @@
 package com.github.tmarsteel.voxamplibrarian.reactapp
 
+import com.github.tmarsteel.voxamplibrarian.DIRECT_BLE_MIDI_AVAILABLE
 import com.github.tmarsteel.voxamplibrarian.appmodel.SimulationConfiguration
 import com.github.tmarsteel.voxamplibrarian.appmodel.VtxAmpState
 import com.github.tmarsteel.voxamplibrarian.appmodel.hardware_integration.VoxVtxAmpConnection
 import com.github.tmarsteel.voxamplibrarian.installPolyfills
 import com.github.tmarsteel.voxamplibrarian.logging.LoggerFactory
+import com.github.tmarsteel.voxamplibrarian.requestDirectBleMidiConnection
 import com.github.tmarsteel.voxamplibrarian.reactapp.components.SimulationConfigurationComponent
 import com.github.tmarsteel.voxamplibrarian.reactapp.components.sidebar.SidebarComponent
 import com.github.tmarsteel.voxamplibrarian.useEffectCoroutine
@@ -14,10 +16,13 @@ import csstype.rem
 import emotion.react.css
 import kotlinx.browser.document
 import kotlinx.browser.window
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.launch
 import react.*
 import react.dom.client.createRoot
+import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 
 private val logger = LoggerFactory["main"]
@@ -55,6 +60,18 @@ val AppComponent = FC<Props> {
             }
             onClick = {
                 sidebarExplicitlyOpen = !sidebarExplicitlyOpen
+            }
+        }
+
+        if (DIRECT_BLE_MIDI_AVAILABLE) {
+            button {
+                className = classes("topbar__ble-connect")
+                +"Connect BLE"
+                onClick = {
+                    GlobalScope.launch {
+                        requestDirectBleMidiConnection()
+                    }
+                }
             }
         }
     }
