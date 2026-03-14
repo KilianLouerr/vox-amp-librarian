@@ -180,6 +180,13 @@ private class WebMidiVoxVtxDevice private constructor(val input: MidiInput, val 
     val isConnected: Boolean
         get() = input.state == "connected" && output.state == "connected"
 
+    suspend fun open() {
+        logger.info("Opening MIDI ports", input.name, input.connection, output.name, output.connection)
+        await(input.open())
+        await(output.open())
+        logger.info("Opened MIDI ports", input.name, input.connection, output.name, output.connection)
+    }
+
     suspend fun close() {
         await(input.close())
         await(output.close())
@@ -194,7 +201,11 @@ private class WebMidiVoxVtxDevice private constructor(val input: MidiInput, val 
             val output = midiState.outputs.entries.singleOrNull { (_, output) -> output.isVtxAmp }
                 ?: return null
 
-            return WebMidiVoxVtxDevice(input.value, output.value)
+            return WebMidiVoxVtxDevice(input.value, output.value).also { device ->
+                GlobalScope.launch {
+                    device.open()
+                }
+            }
         }
 
         private val MidiPort.isVtxAmp: Boolean
