@@ -19,6 +19,10 @@ class CurrentModeResponse(
             return when (mode.toInt()) {
                 0x00 -> {
                     val slot = ProgramSlot.readFrom(fullMessage)
+                    // Some transports/devices include one trailing 0x00 padding byte here.
+                    if (fullMessage.bytesRemaining == 1) {
+                        requireNextByteEquals(fullMessage, 0x00)
+                    }
                     requireEOF(fullMessage)
                     CurrentModeResponse(Mode.PROGRAM_SLOT, slot, null)
                 }
