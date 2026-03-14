@@ -37,11 +37,17 @@ class VoxVtxAmplifierClient(
             }
 
             GlobalScope.launch {
-                if (manufacturerId != MANUFACTURER_ID) {
-                    logger.trace("Ignoring SysEx message because the manufacturer id doesn't match (got $manufacturerId, expected $MANUFACTURER_ID)")
-                }
+                try {
+                    logger.debug("Incoming SysEx for exchange state ${exchangeState::class.simpleName}", manufacturerId, payload.bytesRemaining)
+                    if (manufacturerId != MANUFACTURER_ID) {
+                        logger.warn("Ignoring SysEx message because the manufacturer id doesn't match (got $manufacturerId, expected $MANUFACTURER_ID)")
+                        return@launch
+                    }
 
-                exchangeState = exchangeState.onSysExMessageReceived(payload)
+                    exchangeState = exchangeState.onSysExMessageReceived(payload)
+                } catch (ex: Throwable) {
+                    logger.error("Failed to process incoming SysEx message", ex)
+                }
             }
         }
     }
@@ -129,10 +135,12 @@ class VoxVtxAmplifierClient(
         private val sendJob = GlobalScope.launch {
             try {
                 for (message in exchange.messagesToSend) {
+                    logger.debug("Sending exchange message ${message::class.simpleName}")
                     send(message)
                 }
             }
             catch (ex: Throwable) {
+                logger.error("Failed while sending exchange ${exchange::class.simpleName}", ex)
                 if (!responseAvailableResumed) {
                     responseAvailableResumed = true
                     responseAvailable.resumeWithException(ex)
@@ -147,6 +155,7 @@ class VoxVtxAmplifierClient(
 
             try {
                 val error = ErrorMessage.parse(payload)
+                logger.warn("Exchange ${exchange::class.simpleName} returned ErrorMessage", error)
                 responseAvailableResumed = true
                 responseAvailable.resumeWithException(ExchangeNotAcknowledgedException(exchange, error))
                 return getNextExchangeState()
@@ -160,11 +169,13 @@ class VoxVtxAmplifierClient(
 
             when (val handlingResult = responseHandler.onMessage(payload)) {
                 is ResponseHandler.MessageResult.ResponseComplete -> {
+                    logger.info("Exchange ${exchange::class.simpleName} completed with ${handlingResult.response!!::class.simpleName}")
                     responseAvailableResumed = true
                     responseAvailable.resume(handlingResult.response)
                     return getNextExchangeState()
                 }
                 is ResponseHandler.MessageResult.MoreMessagesNeeded -> {
+                    logger.debug("Exchange ${exchange::class.simpleName} needs more messages")
                     return this
                 }
             }
