@@ -185,7 +185,7 @@ private class WebMidiVoxVtxDevice private constructor(val input: MidiInput, val 
 
         private val MidiPort.isMyEsp32: Boolean
             get() {
-                return name?.contains("ESP32_MIDI", ignoreCase = true) == true
+                return name?.contains("ESP32_Vox_Bridge", ignoreCase = true) == true
             }
     }
 }
