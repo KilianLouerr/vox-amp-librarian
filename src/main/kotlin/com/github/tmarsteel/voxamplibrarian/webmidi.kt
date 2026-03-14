@@ -281,7 +281,7 @@ private class WebBluetoothBleMidiDevice private constructor(
         val value = packet.toUint8Array()
         val noResponseWriter = characteristic.writeValueWithoutResponse
         if (noResponseWriter != null) {
-            await(noResponseWriter(value))
+            await(noResponseWriter.asDynamic().call(characteristic, value).unsafeCast<Promise<Unit>>())
         } else {
             await(characteristic.writeValue(value))
         }
@@ -529,3 +529,5 @@ private fun DataView.toByteArray(): ByteArray {
     val bytes = Uint8Array(buffer, byteOffset, byteLength)
     return ByteArray(byteLength) { bytes[it].toByte() }
 }
+
+
