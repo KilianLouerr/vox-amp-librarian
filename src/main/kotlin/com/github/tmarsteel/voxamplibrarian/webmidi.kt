@@ -175,6 +175,9 @@ private class WebMidiVoxVtxDevice private constructor(val input: MidiInput, val 
                     if (byteAsInt != 0xF0) {
                         continue
                     }
+                } else if (byteAsInt == 0xF0) {
+                    logger.warn("Restarting buffered WebMIDI SysEx after nested start byte", bytes.hex())
+                    incomingSysExBuffer.clear()
                 }
 
                 incomingSysExBuffer.add(byte)
@@ -305,6 +308,9 @@ private class WebBluetoothBleMidiDevice private constructor(
                 if (byteAsInt != 0xF0) {
                     continue
                 }
+            } else if (byteAsInt == 0xF0) {
+                logger.warn("Restarting buffered BLE SysEx after nested start byte", bytes.hex())
+                incomingSysExBuffer.clear()
             }
 
             incomingSysExBuffer.add(byte)
@@ -529,5 +535,6 @@ private fun DataView.toByteArray(): ByteArray {
     val bytes = Uint8Array(buffer, byteOffset, byteLength)
     return ByteArray(byteLength) { bytes[it].toByte() }
 }
+
 
 
